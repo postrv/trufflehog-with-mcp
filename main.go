@@ -35,6 +35,7 @@ import (
 	"github.com/trufflesecurity/trufflehog/v3/pkg/feature"
 	"github.com/trufflesecurity/trufflehog/v3/pkg/handlers"
 	"github.com/trufflesecurity/trufflehog/v3/pkg/log"
+	"github.com/trufflesecurity/trufflehog/v3/pkg/mcp"
 	"github.com/trufflesecurity/trufflehog/v3/pkg/output"
 	"github.com/trufflesecurity/trufflehog/v3/pkg/sources"
 	"github.com/trufflesecurity/trufflehog/v3/pkg/tui"
@@ -271,6 +272,10 @@ var (
 	stdinInputScan = cli.Command("stdin", "Find credentials from stdin.")
 	multiScanScan  = cli.Command("multi-scan", "Find credentials in multiple sources defined in configuration.")
 
+	mcpCmd            = cli.Command("mcp", "Run TruffleHog as an MCP (Model Context Protocol) server.")
+	mcpNoVerification = mcpCmd.Flag("no-verify", "Disable secret verification.").Bool()
+	mcpMaxResults     = mcpCmd.Flag("max-results", "Maximum results per scan.").Default("1000").Int()
+
 	analyzeCmd = analyzer.Command(cli)
 	usingTUI   = false
 )
@@ -441,6 +446,12 @@ func run(state overseer.State) {
 				logger.Error(err, "error serving pprof and fgprof")
 			}
 		}()
+	}
+
+	// Handle MCP command early - it doesn't need the normal scan setup
+	if cmd == mcpCmd.FullCommand() {
+		runMCPServer(ctx)
+		return
 	}
 
 	// Set feature configurations from CLI flags
@@ -1208,4 +1219,27 @@ func validateClonePath(clonePath string, noCleanup bool) error {
 	}
 
 	return nil
+}
+
+// runMCPServer starts the TruffleHog MCP server.
+func runMCPServer(ctx context.Context) {
+	logger := ctx.Logger()
+
+	cfg := mcp.DefaultConfig()
+	cfg.Verify = !*mcpNoVerification
+	cfg.MaxResults = *mcpMaxResults
+	cfg.Concurrency = *concurrency
+
+	server, err := mcp.NewServer(ctx, cfg)
+	if err != nil {
+		logger.Error(err, "failed to create MCP server")
+		os.Exit(1)
+	}
+
+	logger.Info("starting MCP server", "version", version.BuildVersion)
+
+	if err := server.ServeStdio(); err != nil {
+		logger.Error(err, "MCP server error")
+		os.Exit(1)
+	}
 }
