@@ -1,7 +1,7 @@
 <p align="center">
   <img alt="GoReleaser Logo" src="https://storage.googleapis.com/trufflehog-static-sources/pixel_pig.png" height="140" />
-  <h2 align="center">TruffleHog</h2>
-  <p align="center">Find leaked credentials.</p>
+  <h2 align="center">TruffleHog + MCP</h2>
+  <p align="center">Find leaked credentials. Now with AI assistant integration.</p>
 </p>
 
 ---
@@ -13,6 +13,12 @@
 [![Total Detectors](https://img.shields.io/github/directory-file-count/trufflesecurity/truffleHog/pkg/detectors?label=Total%20Detectors&type=dir)](/pkg/detectors)
 
 </div>
+
+---
+
+> **This is a fork of [TruffleHog](https://github.com/trufflesecurity/trufflehog) with [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server support.**
+>
+> Run `trufflehog mcp` to expose TruffleHog's secret scanning capabilities to AI assistants like Claude, enabling interactive security workflows, real-time incident response, and automated security audits through natural conversation.
 
 ---
 
@@ -55,6 +61,140 @@ For every secret TruffleHog can classify, it can also log in to confirm if that 
 ## Analysis 🔬
 
 For the 20 some of the most commonly leaked out credential types, instead of sending one request to check if the secret can log in, TruffleHog can send many requests to learn everything there is to know about the secret. Who created it? What resources can it access? What permissions does it have on those resources?
+
+# :robot: MCP Server Integration
+
+This fork adds **Model Context Protocol (MCP)** support, allowing AI assistants like Claude to directly use TruffleHog's scanning capabilities during conversations.
+
+## Why MCP?
+
+Instead of copying secrets to external tools or running CLI commands manually, you can now:
+- **Paste suspicious content** → AI scans it instantly and explains findings
+- **Ask "Is this secret still active?"** → AI verifies it against the service's API
+- **Request a security audit** → AI scans your repo and prioritizes findings
+- **Get remediation guidance** → AI explains exactly how to rotate each credential type
+
+## Quick Start
+
+### 1. Build TruffleHog
+
+```bash
+git clone https://github.com/postrv/trufflehog-with-mcp.git
+cd trufflehog-with-mcp
+go build -o trufflehog .
+```
+
+### 2. Configure Your AI Assistant
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "trufflehog": {
+      "command": "/path/to/trufflehog",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**Claude Code** (`~/.claude/claude_code.json`):
+
+```json
+{
+  "mcpServers": {
+    "trufflehog": {
+      "command": "/path/to/trufflehog",
+      "args": ["mcp", "--no-verify"]
+    }
+  }
+}
+```
+
+### 3. Restart Your AI Assistant
+
+The TruffleHog tools are now available in your conversations.
+
+## Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_detectors` | List all 800+ available secret detector types |
+| `get_detector_info` | Get detailed information about a specific detector |
+| `scan_text` | Scan arbitrary text content for secrets |
+| `scan_file` | Scan a local file for secrets |
+| `scan_directory` | Scan a directory recursively for secrets |
+| `scan_git_repo` | Scan git repository history for secrets |
+| `verify_secret` | Verify if a specific secret is still active |
+
+## Example Conversations
+
+**Incident Response:**
+```
+User: "Someone posted this in Slack. Is it safe?"
+      AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+
+AI: [scans the text]
+    Found 1 AWS Access Key. Checking if it's still active...
+    ⚠️ VERIFIED ACTIVE - This key is live and needs immediate rotation.
+
+    To rotate:
+    1. Go to IAM Console → Users → Security Credentials
+    2. Create a new access key
+    3. Update your applications
+    4. Delete the compromised key
+    5. Check CloudTrail for unauthorized API calls
+```
+
+**Pre-Commit Review:**
+```
+User: "Check this config file before I commit"
+
+AI: [scans the file]
+    Found 2 issues:
+    - Line 23: Hardcoded database password
+    - Line 45: Private key embedded in config
+
+    Recommendations:
+    - Move secrets to environment variables
+    - Use a secrets manager like AWS Secrets Manager or HashiCorp Vault
+```
+
+**Security Audit:**
+```
+User: "Scan our repo for leaked credentials"
+
+AI: [scans git history]
+    Found 15 potential secrets across 47 commits:
+
+    🔴 HIGH (verified active):
+    - AWS key in deploy.sh (committed March 15)
+    - GitHub token in .env.example
+
+    🟡 MEDIUM (unverified):
+    - 3 API keys in test fixtures
+
+    🟢 LOW (likely false positives):
+    - 10 example/placeholder values
+```
+
+## CLI Options
+
+```bash
+trufflehog mcp [flags]
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--concurrency` | CPU count | Number of concurrent workers |
+| `--no-verify` | false | Disable secret verification (faster, no network calls) |
+| `--max-results` | 1000 | Maximum results per scan |
+| `--timeout` | 5m | Scan timeout duration |
+
+## Full Documentation
+
+See [pkg/mcp/README.md](pkg/mcp/README.md) for complete documentation including response formats, architecture, and all tool parameters.
 
 # :loudspeaker: Join Our Community
 
@@ -119,8 +259,12 @@ Download and unpack from https://github.com/trufflesecurity/trufflehog/releases
 ### Compile from source
 
 ```bash
-git clone https://github.com/trufflesecurity/trufflehog.git
-cd trufflehog; go install
+# For this fork with MCP support:
+git clone https://github.com/postrv/trufflehog-with-mcp.git
+cd trufflehog-with-mcp; go install
+
+# Or for upstream TruffleHog (without MCP):
+# git clone https://github.com/trufflesecurity/trufflehog.git
 ```
 
 ### Using installation script
@@ -434,6 +578,7 @@ TruffleHog has a sub-command for each source of data that you may want to scan:
 - elasticsearch
 - stdin
 - multi-scan
+- **mcp** (MCP server for AI assistants) ← *New in this fork*
 
 Each subcommand can have options that you can see with the `--help` flag provided to the sub command:
 

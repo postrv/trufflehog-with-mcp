@@ -18,8 +18,8 @@ The [Model Context Protocol](https://modelcontextprotocol.io/) is an open standa
 ### 1. Build TruffleHog with MCP support
 
 ```bash
-git clone https://github.com/postrv/trufflehog.git
-cd trufflehog
+git clone https://github.com/postrv/trufflehog-with-mcp.git
+cd trufflehog-with-mcp
 go build -o trufflehog .
 ```
 
